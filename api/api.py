@@ -22,6 +22,7 @@ def get_speed_limit(road_data, lat, lon):
     point = Point(lon, lat)
     nearest_way = None
     min_distance = float('inf')
+    print(road_data['elements'])
 
     for element in road_data['elements']:
         if 'geometry' in element:
@@ -31,9 +32,19 @@ def get_speed_limit(road_data, lat, lon):
                 min_distance = distance
                 nearest_way = element
 
+    # If the nearest road has a maxspeed tag, return the speed limit as an integer.
     if nearest_way and 'tags' in nearest_way and 'maxspeed' in nearest_way['tags']:
-        return nearest_way['tags']['maxspeed']
+        try:
+            speed_limit = int(nearest_way['tags']['maxspeed'].split()[0])
+            return speed_limit
+        except (ValueError, IndexError):
+            return None
     return None
+
+    # # If the nearest road has a maxspeed tag, return the speed limit as a string.
+    # if nearest_way and 'tags' in nearest_way and 'maxspeed' in nearest_way['tags']:
+    #     return nearest_way['tags']['maxspeed']
+    # return None
 
 
 @api.get("/speed-limit")
