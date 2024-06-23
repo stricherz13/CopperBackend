@@ -1,0 +1,58 @@
+<component name="InspectionProjectProfileManager">
+  <profile version="1.0">
+    <option name="myName" value="Project Default" />
+    <inspection_tool class="Eslint" enabled="true" level="WARNING" enabled_by_default="true" />
+    <inspection_tool class="HtmlUnknownAttribute" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="myValues">
+        <value>
+          <list size="1">
+            <item index="0" class="java.lang.String" itemvalue="webkitdirectory" />
+          </list>
+        </value>
+      </option>
+      <option name="myCustomValuesEnabled" value="true" />
+    </inspection_tool>
+    <inspection_tool class="PyCompatibilityInspection" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="ourVersions">
+        <value>
+          <list size="3">
+            <item index="0" class="java.lang.String" itemvalue="2.7" />
+            <item index="1" class="java.lang.String" itemvalue="3.13" />
+            <item index="2" class="java.lang.String" itemvalue="3.12" />
+          </list>
+        </value>
+      </option>
+    </inspection_tool>
+    <inspection_tool class="PyPackageRequirementsInspection" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="ignoredPackages">
+        <value>
+          <list size="15">
+            <item index="0" class="java.lang.String" itemvalue="Pillow" />
+            <item index="1" class="java.lang.String" itemvalue="pywin32" />
+            <item index="2" class="java.lang.String" itemvalue="kivy-deps.angle" />
+            <item index="3" class="java.lang.String" itemvalue="kivy-deps.glew" />
+            <item index="4" class="java.lang.String" itemvalue="pypiwin32" />
+            <item index="5" class="java.lang.String" itemvalue="kivy-deps.sdl2" />
+            <item index="6" class="java.lang.String" itemvalue="uvloop" />
+            <item index="7" class="java.lang.String" itemvalue="httptools" />
+            <item index="8" class="java.lang.String" itemvalue="py_androidbuild" />
+            <item index="9" class="java.lang.String" itemvalue="Kivy" />
+            <item index="10" class="java.lang.String" itemvalue="plyer" />
+            <item index="11" class="java.lang.String" itemvalue="kivymd" />
+            <item index="12" class="java.lang.String" itemvalue="Requests" />
+            <item index="13" class="java.lang.String" itemvalue="django" />
+            <item index="14" class="java.lang.String" itemvalue="djangorestframework" />
+          </list>
+        </value>
+      </option>
+    </inspection_tool>
+    <inspection_tool class="PyUnresolvedReferencesInspection" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="ignoredIdentifiers">
+        <list>
+          <option value="psycopg2.errors.DivisionByZero" />
+        </list>
+      </option>
+    </inspection_tool>
+    <inspection_tool class="Stylelint" enabled="true" level="ERROR" enabled_by_default="true" />
+  </profile>
+</component>
