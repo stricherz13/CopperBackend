@@ -4,3 +4,6 @@ geojson
 shapely
 httpx
 pipreqs
+python-dotenv
+gunicorn
+uvicorn
