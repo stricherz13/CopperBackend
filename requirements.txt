@@ -1,0 +1,6 @@
+django
+django-ninja
+geojson
+shapely
+httpx
+pipreqs
