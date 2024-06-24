@@ -22,7 +22,6 @@ def get_speed_limit(road_data, lat, lon):
     point = Point(lon, lat)
     nearest_way = None
     min_distance = float('inf')
-    print(road_data['elements'])
 
     for element in road_data['elements']:
         if 'geometry' in element:
