@@ -40,8 +40,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'api',
-    'django.contrib.gis',
-]
+    ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -79,12 +78,12 @@ WSGI_APPLICATION = 'CopperBackend.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.contrib.gis.db.backends.postgis',
-        'NAME': os.getenv('DB_NAME', 'mydatabase'),
-        'USER': os.getenv('DB_USER', 'postgres'),
-        'PASSWORD': os.getenv('DB_PASSWORD', 'password'),
-        'HOST': os.getenv('DB_HOST', 'localhost'),
-        'PORT': os.getenv('DB_PORT', '5432'),
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': os.getenv('DB_NAME'),
+        'USER': os.getenv('DB_USER'),
+        'PASSWORD': os.getenv('DB_PASSWORD'),
+        'HOST': os.getenv('DB_HOST'),
+        'PORT': os.getenv('DB_PORT'),
     }
 }
 
