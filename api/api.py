@@ -1,8 +1,11 @@
 from ninja import NinjaAPI
+from ninja.errors import HttpError
 import httpx
 from shapely.geometry import Point, LineString
+from .schema import SpeedRequestSchema
 
 api = NinjaAPI()
+
 
 # This function will use the Overpass API to get the nearest road to a given latitude and longitude.
 async def get_nearest_road(lat, lon):
@@ -17,12 +20,14 @@ async def get_nearest_road(lat, lon):
     data = response.json()
     return data
 
+
 # This function will get the speed limit of the nearest road to a given latitude and longitude.
 def get_speed_limit(road_data, lat, lon):
     point = Point(lon, lat)
     nearest_way = None
     min_distance = float('inf')
 
+    # Find the nearest road to the given latitude and longitude. Loop through all the elements in the road_data.
     for element in road_data['elements']:
         if 'geometry' in element:
             line = LineString([(node['lon'], node['lat']) for node in element['geometry']])
@@ -40,11 +45,6 @@ def get_speed_limit(road_data, lat, lon):
             return None
     return None
 
-    # # If the nearest road has a maxspeed tag, return the speed limit as a string.
-    # if nearest_way and 'tags' in nearest_way and 'maxspeed' in nearest_way['tags']:
-    #     return nearest_way['tags']['maxspeed']
-    # return None
-
 
 @api.get("/speed-limit")
 async def get_speed_limit_endpoint(request, lat: float, lon: float):
@@ -55,3 +55,23 @@ async def get_speed_limit_endpoint(request, lat: float, lon: float):
         return {"speed_limit": speed_limit}
     else:
         return {"error": "No speed limit information found"}
+
+
+@api.post("/speed-info")
+async def get_speed_info(request, payload: SpeedRequestSchema):
+    lat = payload.lat
+    lon = payload.lon
+    current_speed = payload.current_speed
+
+    road_data = await get_nearest_road(lat, lon)
+    speed_limit = get_speed_limit(road_data, lat, lon)
+
+    if speed_limit is None:
+        raise HttpError(404, "No speed limit information found")
+
+    return {
+        "latitude": lat,
+        "longitude": lon,
+        "current_speed": current_speed,
+        "road_speed_limit": speed_limit,
+    }

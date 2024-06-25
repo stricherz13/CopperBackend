@@ -7,3 +7,5 @@ pipreqs
 python-dotenv
 gunicorn
 uvicorn
+psycopg2
+psycopg2-binary
