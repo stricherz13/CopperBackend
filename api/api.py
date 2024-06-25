@@ -61,7 +61,7 @@ async def get_speed_limit_endpoint(request, lat: float, lon: float):
 async def get_speed_info(request, payload: SpeedRequestSchema):
     lat = payload.lat
     lon = payload.lon
-    current_speed = payload.current_speed
+    user_speed = payload.user_speed
 
     road_data = await get_nearest_road(lat, lon)
     speed_limit = get_speed_limit(road_data, lat, lon)
@@ -69,9 +69,16 @@ async def get_speed_info(request, payload: SpeedRequestSchema):
     if speed_limit is None:
         raise HttpError(404, "No speed limit information found")
 
+    speed_difference = speed_limit - user_speed
+    if speed_difference < 0:
+        speed_difference = 0
+    else:
+        speed_difference = speed_difference
+
     return {
         "latitude": lat,
         "longitude": lon,
-        "current_speed": current_speed,
+        "user_speed": user_speed,
         "road_speed_limit": speed_limit,
+        "speed_difference": speed_difference
     }

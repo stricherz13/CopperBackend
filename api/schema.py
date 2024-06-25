@@ -5,4 +5,4 @@ from ninja import Schema
 class SpeedRequestSchema(Schema):
     lat: float
     lon: float
-    current_speed: int
+    user_speed: int
