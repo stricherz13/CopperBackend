@@ -69,7 +69,7 @@ async def get_speed_info(request, payload: SpeedRequestSchema):
     if speed_limit is None:
         raise HttpError(404, "No speed limit information found")
 
-    speed_difference = speed_limit - user_speed
+    speed_difference = user_speed - speed_limit
     if speed_difference < 0:
         speed_difference = 0
     else:
