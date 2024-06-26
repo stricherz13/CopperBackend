@@ -1,11 +1,15 @@
+from asgiref.sync import sync_to_async
 from ninja import NinjaAPI
 from ninja.errors import HttpError
 import httpx
 from shapely.geometry import Point, LineString
 from .schema import SpeedRequestSchema
 from .models import SpeedRecord
+import logging
 
 api = NinjaAPI()
+
+logger = logging.getLogger(__name__)
 
 
 # This function will use the Overpass API to get the nearest road to a given latitude and longitude.
@@ -64,32 +68,36 @@ async def get_speed_info(request, payload: SpeedRequestSchema):
     lon = payload.lon
     user_speed = payload.user_speed
 
-    road_data = await get_nearest_road(lat, lon)
-    speed_limit = get_speed_limit(road_data, lat, lon)
+    try:
+        road_data = await get_nearest_road(lat, lon)
+        speed_limit = get_speed_limit(road_data, lat, lon)
 
-    if speed_limit is None:
-        raise HttpError(404, "No speed limit information found")
+        if speed_limit is None:
+            raise HttpError(404, "No speed limit information found")
 
-    speed_difference = user_speed - speed_limit
-    if speed_difference < 0:
-        speed_difference = 0
-    else:
-        speed_difference = speed_difference
+        speed_difference = user_speed - speed_limit
+        if speed_difference < 0:
+            speed_difference = 0
+        else:
+            speed_difference = speed_difference
 
-    # Save the speed record to the database
-    speed_record = SpeedRecord(
-        latitude=lat,
-        longitude=lon,
-        current_speed=user_speed,
-        road_speed_limit=speed_limit,
-        speed_difference=speed_difference
-    )
-    speed_record.save()
+        # Save the speed record to the database
+        speed_record = SpeedRecord(
+            latitude=lat,
+            longitude=lon,
+            current_speed=user_speed,
+            road_speed_limit=speed_limit,
+            speed_difference=speed_difference
+        )
+        await sync_to_async(speed_record.save)()
 
-    return {
-        "latitude": lat,
-        "longitude": lon,
-        "user_speed": user_speed,
-        "road_speed_limit": speed_limit,
-        "speed_difference": speed_difference
-    }
+        return {
+            "latitude": lat,
+            "longitude": lon,
+            "user_speed": user_speed,
+            "road_speed_limit": speed_limit,
+            "speed_difference": speed_difference
+        }
+    except Exception as e:
+        logger.error(f"Error in get_speed_info: {e}")
+        raise HttpError(500, f"Internal server error: {e}")
