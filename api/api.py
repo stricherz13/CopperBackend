@@ -3,6 +3,7 @@ from ninja.errors import HttpError
 import httpx
 from shapely.geometry import Point, LineString
 from .schema import SpeedRequestSchema
+from .models import SpeedRecord
 
 api = NinjaAPI()
 
@@ -74,6 +75,16 @@ async def get_speed_info(request, payload: SpeedRequestSchema):
         speed_difference = 0
     else:
         speed_difference = speed_difference
+
+    # Save the speed record to the database
+    speed_record = SpeedRecord(
+        latitude=lat,
+        longitude=lon,
+        current_speed=user_speed,
+        road_speed_limit=speed_limit,
+        speed_difference=speed_difference
+    )
+    speed_record.save()
 
     return {
         "latitude": lat,
