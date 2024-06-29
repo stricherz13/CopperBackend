@@ -1,3 +1,4 @@
+import geojson
 from asgiref.sync import sync_to_async
 from ninja import NinjaAPI
 from ninja.errors import HttpError
@@ -5,11 +6,8 @@ import httpx
 from shapely.geometry import Point, LineString
 from .schema import SpeedRequestSchema
 from .models import SpeedRecord
-import logging
 
 api = NinjaAPI()
-
-logger = logging.getLogger(__name__)
 
 
 # This function will use the Overpass API to get the nearest road to a given latitude and longitude.
@@ -99,5 +97,35 @@ async def get_speed_info(request, payload: SpeedRequestSchema):
             "speed_difference": speed_difference
         }
     except Exception as e:
-        logger.error(f"Error in get_speed_info: {e}")
+        raise HttpError(500, f"Internal server error: {e}")
+
+
+@api.get("/speed-heatmap")
+async def get_speed_heatmap(request):
+    try:
+        # Retrieve all SpeedRecord data
+        speed_records = await sync_to_async(list)(SpeedRecord.objects.all())
+
+        if not speed_records:
+            raise HttpError(404, "No speed records found")
+
+        # Aggregate coordinates and speed differences into a single LineString
+        coordinates = [(record.longitude, record.latitude) for record in speed_records]
+        speed_differences = [record.speed_difference for record in speed_records]
+
+        if len(coordinates) < 2:
+            raise HttpError(400, "Not enough data points to create a LineString")
+
+        line = LineString(coordinates)
+
+        # Create GeoJSON feature with speed differences
+        feature = geojson.Feature(
+            geometry=line,
+            properties={"speed_differences": speed_differences}
+        )
+
+        feature_collection = geojson.FeatureCollection([feature])
+        return feature_collection
+
+    except Exception as e:
         raise HttpError(500, f"Internal server error: {e}")
