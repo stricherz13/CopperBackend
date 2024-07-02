@@ -6,7 +6,7 @@ import httpx
 from shapely.geometry import Point, LineString
 from .schema import SpeedRequestSchema
 from .models import SpeedRecord
-from .utils import segment_trips
+from .utils import segment_trips, interpolate_speed_differences
 
 api = NinjaAPI()
 
@@ -101,39 +101,79 @@ async def get_speed_info(request, payload: SpeedRequestSchema):
         raise HttpError(500, f"Internal server error: {e}")
 
 
+import logging
+import geojson
+from shapely.geometry import Point, LineString
+from asgiref.sync import sync_to_async
+
+logger = logging.getLogger(__name__)
+
+
 @api.get("/speed-heatmap")
 async def get_speed_heatmap(request):
     try:
+        logger.info("Fetching all speed records...")
         # Retrieve all SpeedRecord data
         speed_records = await sync_to_async(list)(SpeedRecord.objects.all().order_by('timestamp'))
+        logger.debug(f"Fetched {len(speed_records)} speed records")
 
         if not speed_records:
-            raise HttpError(404, "No speed records found")
+            logger.warning("No speed records found")
+            return {"detail": "No speed records found"}, 404
 
         # Segment the data into trips
+        logger.info("Segmenting trips...")
         segmented_trips = segment_trips(speed_records)
+        logger.debug(f"Segmented into {len(segmented_trips)} trips")
 
-        # Create GeoJSON features for each trip
-        features = []
+        # Interpolating speed differences for each trip
+        all_interpolated_points = []
+        all_interpolated_speeds = []
+
         for trip in segmented_trips:
-            coordinates = [(record.longitude, record.latitude) for record in trip]
-            speed_differences = [record.speed_difference for record in trip]
+            points, speeds = interpolate_speed_differences(trip)
+            all_interpolated_points.append(points)
+            all_interpolated_speeds.append(speeds)
+            logger.debug(f"Interpolated trip with {len(points)} points and {len(speeds)} speeds")
 
-            if len(coordinates) < 2:
-                continue  # Skip trips with not enough data points
+        # Flatten the lists
+        all_points = [pt for sublist in all_interpolated_points for pt in sublist]
+        all_speeds = [spd for sublist in all_interpolated_speeds for spd in sublist]
+        logger.debug(f"Flattened to {len(all_points)} total points and {len(all_speeds)} total speeds")
 
-            line = LineString(coordinates)
-            feature = geojson.Feature(
-                geometry=line,
-                properties={"speed_differences": speed_differences}
-            )
-            features.append(feature)
+        # Calculate average speed differences for overlapping segments
+        point_speed_map = {}
+        for pt, spd in zip(all_points, all_speeds):
+            coord = (pt.x, pt.y)
+            if coord not in point_speed_map:
+                point_speed_map[coord] = []
+            point_speed_map[coord].append(spd)
 
-        if not features:
-            raise HttpError(400, "Not enough data points to create LineString features")
+        averaged_points = []
+        averaged_speeds = []
+        for coord, speeds in point_speed_map.items():
+            # Filter out 0 values
+            valid_speeds = [spd for spd in speeds if spd != 0]
+            if valid_speeds:
+                averaged_points.append(Point(coord))
+                averaged_speeds.append(sum(valid_speeds) / len(valid_speeds))
+        logger.debug(f"Averaged to {len(averaged_points)} points with corresponding speeds")
 
-        feature_collection = geojson.FeatureCollection(features)
+        # Create GeoJSON features
+        if not averaged_points:
+            logger.warning("Not enough data points to create LineString features")
+            return {"detail": "Not enough data points to create LineString features"}, 400
+
+        line = LineString([(pt.x, pt.y) for pt in averaged_points])
+        feature = geojson.Feature(
+            geometry=line,
+            properties={"average_speed_differences": averaged_speeds}
+        )
+
+        feature_collection = geojson.FeatureCollection([feature])
+        logger.info("Successfully created GeoJSON feature collection")
         return feature_collection
 
     except Exception as e:
-        raise HttpError(500, f"Internal server error: {e}")
+        logger.error(f"Internal server error: {e}")
+        return {"detail": f"Internal server error: {e}"}, 500
