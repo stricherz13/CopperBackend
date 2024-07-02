@@ -6,6 +6,7 @@ import httpx
 from shapely.geometry import Point, LineString
 from .schema import SpeedRequestSchema
 from .models import SpeedRecord
+from .utils import segment_trips
 
 api = NinjaAPI()
 
@@ -104,27 +105,34 @@ async def get_speed_info(request, payload: SpeedRequestSchema):
 async def get_speed_heatmap(request):
     try:
         # Retrieve all SpeedRecord data
-        speed_records = await sync_to_async(list)(SpeedRecord.objects.all())
+        speed_records = await sync_to_async(list)(SpeedRecord.objects.all().order_by('timestamp'))
 
         if not speed_records:
             raise HttpError(404, "No speed records found")
 
-        # Aggregate coordinates and speed differences into a single LineString
-        coordinates = [(record.longitude, record.latitude) for record in speed_records]
-        speed_differences = [record.speed_difference for record in speed_records]
+        # Segment the data into trips
+        segmented_trips = segment_trips(speed_records)
 
-        if len(coordinates) < 2:
-            raise HttpError(400, "Not enough data points to create a LineString")
+        # Create GeoJSON features for each trip
+        features = []
+        for trip in segmented_trips:
+            coordinates = [(record.longitude, record.latitude) for record in trip]
+            speed_differences = [record.speed_difference for record in trip]
 
-        line = LineString(coordinates)
+            if len(coordinates) < 2:
+                continue  # Skip trips with not enough data points
 
-        # Create GeoJSON feature with speed differences
-        feature = geojson.Feature(
-            geometry=line,
-            properties={"speed_differences": speed_differences}
-        )
+            line = LineString(coordinates)
+            feature = geojson.Feature(
+                geometry=line,
+                properties={"speed_differences": speed_differences}
+            )
+            features.append(feature)
 
-        feature_collection = geojson.FeatureCollection([feature])
+        if not features:
+            raise HttpError(400, "Not enough data points to create LineString features")
+
+        feature_collection = geojson.FeatureCollection(features)
         return feature_collection
 
     except Exception as e:
