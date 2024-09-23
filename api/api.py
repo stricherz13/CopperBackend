@@ -1,5 +1,6 @@
 import geojson
 from asgiref.sync import sync_to_async
+from django.http import JsonResponse
 from ninja import NinjaAPI
 from ninja.errors import HttpError
 import httpx
@@ -101,79 +102,105 @@ async def get_speed_info(request, payload: SpeedRequestSchema):
         raise HttpError(500, f"Internal server error: {e}")
 
 
-import logging
-import geojson
-from shapely.geometry import Point, LineString
-from asgiref.sync import sync_to_async
-
-logger = logging.getLogger(__name__)
-
-
 @api.get("/speed-heatmap")
 async def get_speed_heatmap(request):
     try:
-        logger.info("Fetching all speed records...")
+        print("Fetching all speed records...")
         # Retrieve all SpeedRecord data
         speed_records = await sync_to_async(list)(SpeedRecord.objects.all().order_by('timestamp'))
-        logger.debug(f"Fetched {len(speed_records)} speed records")
+        print(f"Fetched {len(speed_records)} speed records")
 
         if not speed_records:
-            logger.warning("No speed records found")
-            return {"detail": "No speed records found"}, 404
+            print("No speed records found")
+            return JsonResponse({"detail": "No speed records found"}, status=404)
 
         # Segment the data into trips
-        logger.info("Segmenting trips...")
+        print("Segmenting trips...")
         segmented_trips = segment_trips(speed_records)
-        logger.debug(f"Segmented into {len(segmented_trips)} trips")
+        print(f"Segmented into {len(segmented_trips)} trips")
 
-        # Interpolating speed differences for each trip
-        all_interpolated_points = []
-        all_interpolated_speeds = []
+        if len(segmented_trips) > 1:
+            # Interpolating speed differences for each trip
+            all_interpolated_points = []
+            all_interpolated_speeds = []
 
+            for trip in segmented_trips:
+                print(f"Interpolating trip with {len(trip)} points...")
+                points, speeds = interpolate_speed_differences(trip)
+                if not points or not speeds:
+                    print("Interpolation returned empty lists")
+                else:
+                    print(f"Interpolated {len(points)} points and {len(speeds)} speeds")
+                all_interpolated_points.extend(points)
+                all_interpolated_speeds.extend(speeds)
+                print(f"All interpolated points so far: {len(all_interpolated_points)}")
+                print(f"All interpolated speeds so far: {len(all_interpolated_speeds)}")
+
+            # Flatten the lists (already flattened in the above step)
+            print(
+                f"Flattened to {len(all_interpolated_points)} total points and {len(all_interpolated_speeds)} total speeds")
+
+            # Calculate average speed differences for overlapping segments
+            point_speed_map = {}
+            for pt, spd in zip(all_interpolated_points, all_interpolated_speeds):
+                coord = (pt.x, pt.y)
+                if coord not in point_speed_map:
+                    point_speed_map[coord] = []
+                point_speed_map[coord].append(spd)
+            print(f"Calculated average speed differences for {len(point_speed_map)} points")
+
+            print("Calculating averaged points and speeds...")
+            averaged_points = []
+            averaged_speeds = []
+            for coord, speeds in point_speed_map.items():
+                # Filter out 0 values
+                valid_speeds = [spd for spd in speeds if spd != 0]
+                print(f"Valid speeds: {valid_speeds}")
+                if valid_speeds:
+                    averaged_points.append(Point(coord))
+                    averaged_speeds.append(sum(valid_speeds) / len(valid_speeds))
+                    print(f"Averaged to {len(averaged_points)} points with corresponding speeds")
+
+            # Create GeoJSON features
+            if not averaged_points:
+                print("Not enough data points to create LineString features")
+                print(f"Point-speed map: {point_speed_map}")
+                print(f"Averaged points: {averaged_points}")
+                print(f"Averaged speeds: {averaged_speeds}")
+                return JsonResponse({"detail": "Not enough data points to create LineString features"}, status=400)
+
+            line = LineString([(pt.x, pt.y) for pt in averaged_points])
+            feature = geojson.Feature(
+                geometry=line,
+                properties={"average_speed_differences": averaged_speeds}
+            )
+
+            feature_collection = geojson.FeatureCollection([feature])
+            print("Successfully created GeoJSON feature collection")
+            return JsonResponse(feature_collection, safe=False)
+
+        # Create GeoJSON features for each trip
+        features = []
         for trip in segmented_trips:
-            points, speeds = interpolate_speed_differences(trip)
-            all_interpolated_points.append(points)
-            all_interpolated_speeds.append(speeds)
-            logger.debug(f"Interpolated trip with {len(points)} points and {len(speeds)} speeds")
+            coordinates = [(record.longitude, record.latitude) for record in trip]
+            speed_differences = [record.speed_difference for record in trip]
 
-        # Flatten the lists
-        all_points = [pt for sublist in all_interpolated_points for pt in sublist]
-        all_speeds = [spd for sublist in all_interpolated_speeds for spd in sublist]
-        logger.debug(f"Flattened to {len(all_points)} total points and {len(all_speeds)} total speeds")
+            if len(coordinates) < 2:
+                continue  # Skip trips with not enough data points
 
-        # Calculate average speed differences for overlapping segments
-        point_speed_map = {}
-        for pt, spd in zip(all_points, all_speeds):
-            coord = (pt.x, pt.y)
-            if coord not in point_speed_map:
-                point_speed_map[coord] = []
-            point_speed_map[coord].append(spd)
+            line = LineString(coordinates)
+            feature = geojson.Feature(
+                geometry=line,
+                properties={"speed_differences": speed_differences}
+            )
+            features.append(feature)
 
-        averaged_points = []
-        averaged_speeds = []
-        for coord, speeds in point_speed_map.items():
-            # Filter out 0 values
-            valid_speeds = [spd for spd in speeds if spd != 0]
-            if valid_speeds:
-                averaged_points.append(Point(coord))
-                averaged_speeds.append(sum(valid_speeds) / len(valid_speeds))
-        logger.debug(f"Averaged to {len(averaged_points)} points with corresponding speeds")
+        if not features:
+            return JsonResponse({"detail": "Not enough data points to create LineString features"}, status=400)
 
-        # Create GeoJSON features
-        if not averaged_points:
-            logger.warning("Not enough data points to create LineString features")
-            return {"detail": "Not enough data points to create LineString features"}, 400
-
-        line = LineString([(pt.x, pt.y) for pt in averaged_points])
-        feature = geojson.Feature(
-            geometry=line,
-            properties={"average_speed_differences": averaged_speeds}
-        )
-
-        feature_collection = geojson.FeatureCollection([feature])
-        logger.info("Successfully created GeoJSON feature collection")
-        return feature_collection
+        feature_collection = geojson.FeatureCollection(features)
+        return JsonResponse(feature_collection, safe=False)
 
     except Exception as e:
-        logger.error(f"Internal server error: {e}")
-        return {"detail": f"Internal server error: {e}"}, 500
+        print(f"Error occurred: {str(e)}")
+        return JsonResponse({"detail": str(e)}, status=500)
