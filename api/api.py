@@ -1,13 +1,14 @@
 import geojson
+import httpx
 from asgiref.sync import sync_to_async
 from django.http import JsonResponse
 from ninja import NinjaAPI
 from ninja.errors import HttpError
-import httpx
-from shapely.geometry import Point, LineString
-from .schema import SpeedRequestSchema
+from shapely.geometry import LineString, Point
+
 from .models import SpeedRecord
-from .utils import segment_trips, interpolate_speed_differences
+from .schema import SpeedRequestSchema
+from .utils import interpolate_speed_differences, segment_trips
 
 api = NinjaAPI()
 
@@ -21,7 +22,7 @@ async def get_nearest_road(lat, lon):
     out geom;
     """
     async with httpx.AsyncClient() as client:
-        response = await client.get(overpass_url, params={'data': overpass_query})
+        response = await client.get(overpass_url, params={"data": overpass_query})
     data = response.json()
     return data
 
@@ -30,21 +31,23 @@ async def get_nearest_road(lat, lon):
 def get_speed_limit(road_data, lat, lon):
     point = Point(lon, lat)
     nearest_way = None
-    min_distance = float('inf')
+    min_distance = float("inf")
 
     # Find the nearest road to the given latitude and longitude. Loop through all the elements in the road_data.
-    for element in road_data['elements']:
-        if 'geometry' in element:
-            line = LineString([(node['lon'], node['lat']) for node in element['geometry']])
+    for element in road_data["elements"]:
+        if "geometry" in element:
+            line = LineString(
+                [(node["lon"], node["lat"]) for node in element["geometry"]]
+            )
             distance = point.distance(line)
             if distance < min_distance:
                 min_distance = distance
                 nearest_way = element
 
     # If the nearest road has a maxspeed tag, return the speed limit as an integer.
-    if nearest_way and 'tags' in nearest_way and 'maxspeed' in nearest_way['tags']:
+    if nearest_way and "tags" in nearest_way and "maxspeed" in nearest_way["tags"]:
         try:
-            speed_limit = int(nearest_way['tags']['maxspeed'].split()[0])
+            speed_limit = int(nearest_way["tags"]["maxspeed"].split()[0])
             return speed_limit
         except (ValueError, IndexError):
             return None
@@ -87,7 +90,7 @@ async def get_speed_info(request, payload: SpeedRequestSchema):
             longitude=lon,
             current_speed=user_speed,
             road_speed_limit=speed_limit,
-            speed_difference=speed_difference
+            speed_difference=speed_difference,
         )
         await sync_to_async(speed_record.save)()
 
@@ -96,7 +99,7 @@ async def get_speed_info(request, payload: SpeedRequestSchema):
             "longitude": lon,
             "user_speed": user_speed,
             "road_speed_limit": speed_limit,
-            "speed_difference": speed_difference
+            "speed_difference": speed_difference,
         }
     except Exception as e:
         raise HttpError(500, f"Internal server error: {e}")
@@ -107,7 +110,9 @@ async def get_speed_heatmap(request):
     try:
         print("Fetching all speed records...")
         # Retrieve all SpeedRecord data
-        speed_records = await sync_to_async(list)(SpeedRecord.objects.all().order_by('timestamp'))
+        speed_records = await sync_to_async(list)(
+            SpeedRecord.objects.all().order_by("timestamp")
+        )
         print(f"Fetched {len(speed_records)} speed records")
 
         if not speed_records:
@@ -138,7 +143,8 @@ async def get_speed_heatmap(request):
 
             # Flatten the lists (already flattened in the above step)
             print(
-                f"Flattened to {len(all_interpolated_points)} total points and {len(all_interpolated_speeds)} total speeds")
+                f"Flattened to {len(all_interpolated_points)} total points and {len(all_interpolated_speeds)} total speeds"
+            )
 
             # Calculate average speed differences for overlapping segments
             point_speed_map = {}
@@ -147,7 +153,9 @@ async def get_speed_heatmap(request):
                 if coord not in point_speed_map:
                     point_speed_map[coord] = []
                 point_speed_map[coord].append(spd)
-            print(f"Calculated average speed differences for {len(point_speed_map)} points")
+            print(
+                f"Calculated average speed differences for {len(point_speed_map)} points"
+            )
 
             print("Calculating averaged points and speeds...")
             averaged_points = []
@@ -159,7 +167,9 @@ async def get_speed_heatmap(request):
                 if valid_speeds:
                     averaged_points.append(Point(coord))
                     averaged_speeds.append(sum(valid_speeds) / len(valid_speeds))
-                    print(f"Averaged to {len(averaged_points)} points with corresponding speeds")
+                    print(
+                        f"Averaged to {len(averaged_points)} points with corresponding speeds"
+                    )
 
             # Create GeoJSON features
             if not averaged_points:
@@ -167,12 +177,14 @@ async def get_speed_heatmap(request):
                 print(f"Point-speed map: {point_speed_map}")
                 print(f"Averaged points: {averaged_points}")
                 print(f"Averaged speeds: {averaged_speeds}")
-                return JsonResponse({"detail": "Not enough data points to create LineString features"}, status=400)
+                return JsonResponse(
+                    {"detail": "Not enough data points to create LineString features"},
+                    status=400,
+                )
 
             line = LineString([(pt.x, pt.y) for pt in averaged_points])
             feature = geojson.Feature(
-                geometry=line,
-                properties={"average_speed_differences": averaged_speeds}
+                geometry=line, properties={"average_speed_differences": averaged_speeds}
             )
 
             feature_collection = geojson.FeatureCollection([feature])
@@ -190,13 +202,15 @@ async def get_speed_heatmap(request):
 
             line = LineString(coordinates)
             feature = geojson.Feature(
-                geometry=line,
-                properties={"speed_differences": speed_differences}
+                geometry=line, properties={"speed_differences": speed_differences}
             )
             features.append(feature)
 
         if not features:
-            return JsonResponse({"detail": "Not enough data points to create LineString features"}, status=400)
+            return JsonResponse(
+                {"detail": "Not enough data points to create LineString features"},
+                status=400,
+            )
 
         feature_collection = geojson.FeatureCollection(features)
         return JsonResponse(feature_collection, safe=False)
