@@ -1,7 +1,9 @@
 from django.db import models
+from django.contrib.gis.db import models as gis_models
 
 
 class SpeedRecord(models.Model):
+    location = gis_models.PointField(geography=True, srid=4326, null=True)
     latitude = models.FloatField()
     longitude = models.FloatField()
     current_speed = models.IntegerField()
