@@ -2,6 +2,7 @@ import geojson
 import httpx
 from asgiref.sync import sync_to_async
 from django.http import JsonResponse
+from django.contrib.gis.geos import Point
 from ninja import NinjaAPI
 from ninja.errors import HttpError
 from shapely.geometry import LineString, Point
@@ -84,8 +85,10 @@ async def get_speed_info(request, payload: SpeedRequestSchema):
         else:
             speed_difference = speed_difference
 
+        location_point = Point(lon, lat, srid=4326)
         # Save the speed record to the database
         speed_record = SpeedRecord(
+            location=location_point,
             latitude=lat,
             longitude=lon,
             current_speed=user_speed,
