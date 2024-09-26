@@ -124,19 +124,27 @@ def get_speed_heatmap(request):
             .values("location", "avg_speed_diff", "min_speed_diff", "max_speed_diff")
         )
 
-        # Prepare the data for the response
-        heatmap_data = [
-            {
-                "latitude": record["location"].y,
-                "longitude": record["location"].x,
-                "avg_speed_difference": record["avg_speed_diff"],
-                "min_speed_difference": record["min_speed_diff"],
-                "max_speed_difference": record["max_speed_diff"],
-            }
-            for record in aggregated_data
-        ]
+        # Prepare the data for the GeoJSON response
+        geojson_data = {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "geometry": {
+                        "type": "Point",
+                        "coordinates": [record["location"].x, record["location"].y],
+                    },
+                    "properties": {
+                        "avg_speed_difference": record["avg_speed_diff"],
+                        "min_speed_difference": record["min_speed_diff"],
+                        "max_speed_difference": record["max_speed_diff"],
+                    }
+                }
+                for record in aggregated_data
+            ]
+        }
 
-        return JsonResponse({"heatmap": heatmap_data})
+        return JsonResponse(geojson_data)
     except Exception as e:
         raise HttpError(500, f"Internal server error: {e}")
 
